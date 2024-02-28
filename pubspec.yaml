@@ -1,0 +1,26 @@
+name: flutter_application_1
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.2.6 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_avif: ^2.3.0
+  faker: ^2.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+  intl: ^0.17.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - images/sampah1.avif
+    - images/sampah2.avif
