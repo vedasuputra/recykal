@@ -1,19 +1,61 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_avif/flutter_avif.dart';
 import 'package:intl/intl.dart';
 import 'dart:math';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:faker/faker.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:qris/qris.dart';
+import 'package:barcode_finder/barcode_finder.dart' as bf;
+import 'package:image_picker/image_picker.dart';
 
-void main() {
-  runApp(MyApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('id_ID', null).then((_) => runApp(MyApp()));
 }
 
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: HomePage(),
+    return ChangeNotifierProvider(
+      create: (_) => PaymentModel(),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: HomePage(),
+        initialRoute: '/',
+        routes: {
+          '/paymentField': (context) => AirPage(),
+          '/paymentConfirmation': (context) => PaymentDetailsPage(),
+          '/transactionDetails': (context) => DetailPage(),
+          '/transactionConfirm': (context) {
+            final args = ModalRoute.of(context)!.settings.arguments
+                as TransactionArguments;
+            return TransaksiConfirm(
+              paymentAmount: args.paymentAmount,
+              merchantName: args.merchantName,
+            );
+          },
+          '/transferNominal': (context) => TransferNominal(),
+          '/transferConfirm': (context) {
+            final args =
+                ModalRoute.of(context)!.settings.arguments as TransferArguments;
+            return TransferConfirm(
+              paymentAmount: args.paymentAmount,
+              paymentRek: args.paymentRek,
+              fakeName: args.fakeName,
+            );
+          },
+          '/tarikConfirm': (context) {
+            final args =
+                ModalRoute.of(context)!.settings.arguments as TarikArguments;
+            return TarikConfirm(
+              tarikAmount: args.tarikAmount,
+            );
+          },
+          '/listrikConfirmation': (context) => TokenDetailsPage(),
+        },
+      ),
     );
   }
 }
@@ -302,68 +344,131 @@ class _LoginState extends State<Login> {
   }
 }
 
+class CurrencyFormat {
+  static String convertToIdr(dynamic number, int decimalDigit) {
+    NumberFormat currencyFormatter = NumberFormat.currency(
+      locale: 'id',
+      symbol: 'Rp ',
+      decimalDigits: decimalDigit,
+    );
+    return currencyFormatter.format(number);
+  }
+}
+
 class Transaction {
   IconData icon;
   String title;
   String description;
   String amount;
-  Transaction(
-      {required this.icon,
-      required this.title,
-      required this.description,
-      required this.amount});
+  String ID;
+  String name;
+  String fee;
+  String admin;
+  DateTime date;
+  Transaction({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required int feeAmount,
+    required int adminAmount,
+    required this.ID,
+    required this.name,
+    required this.date,
+  })  : fee = '${CurrencyFormat.convertToIdr(feeAmount, 2)}',
+        admin = '${CurrencyFormat.convertToIdr(adminAmount, 2)}',
+        amount = '${CurrencyFormat.convertToIdr(feeAmount + adminAmount, 2)}';
 }
 
-List<Transaction> transactions = [
-  Transaction(
-    icon: Icons.payment,
-    title: 'Pembayaran',
-    description: 'Pembayaran listrik',
-    amount: '-Rp250.000,00',
-  ),
-  Transaction(
-    icon: Icons.attach_money,
-    title: 'Penambahan Dana',
-    description: 'Penambahan dana',
-    amount: '+Rp500.000,00',
-  ),
-  Transaction(
-    icon: Icons.payment,
-    title: 'Pembayaran',
-    description: 'Pembayaran air',
-    amount: '-Rp750.000,00',
-  ),
-  Transaction(
-    icon: Icons.attach_money,
-    title: 'Transfer Keluar',
-    description: 'Transfer ke akun lain',
-    amount: '-Rp750.000,00',
-  ),
-  Transaction(
-    icon: Icons.payment,
-    title: 'Pembayaran',
-    description: 'Pembayaran air',
-    amount: '-Rp750.000,00',
-  ),
-];
+class PaymentModel extends ChangeNotifier {
+  int mainAccountBalance = 100000000;
 
-class DashboardPage extends StatelessWidget {
+  List<Transaction> transactions = [
+    Transaction(
+      icon: Icons.payment,
+      title: 'Pembayaran',
+      description: 'Pembayaran listrik',
+      ID: '1511200300',
+      name: 'Yastika Putra',
+      feeAmount: 250000,
+      adminAmount: 500,
+      date: DateTime(2024, 4, 2, 10, 30, 0),
+    ),
+    Transaction(
+      icon: Icons.attach_money,
+      title: 'Penambahan Dana',
+      description: 'Penambahan dana',
+      ID: '1511100400',
+      name: 'Dewina Savitri',
+      feeAmount: 500000,
+      adminAmount: 0,
+      date: DateTime(2023, 8, 15, 14, 45, 0),
+    ),
+    Transaction(
+      icon: Icons.payment,
+      title: 'Pembayaran',
+      description: 'Pembayaran air',
+      ID: '1511500600',
+      name: 'Veda Suputra',
+      feeAmount: 749000,
+      adminAmount: 1000,
+      date: DateTime(2024, 1, 20, 9, 0, 0),
+    ),
+    Transaction(
+      icon: Icons.payment,
+      title: 'Transfer',
+      description: 'Transfer ke akun lain',
+      ID: '1511700800',
+      name: 'Pratama Surya',
+      feeAmount: 748500,
+      adminAmount: 1500,
+      date: DateTime(2023, 11, 5, 18, 20, 0),
+    ),
+    Transaction(
+      icon: Icons.payment,
+      title: 'Pembayaran',
+      description: 'Pembayaran air',
+      ID: '1511900000',
+      name: 'Nanda Kuswanda',
+      feeAmount: 748000,
+      adminAmount: 2000,
+      date: DateTime(2024, 6, 10, 12, 0, 0),
+    ),
+  ];
+
+  void addTransaction(Transaction transaction) {
+    int transactionAmount = int.parse(transaction.amount
+        .replaceAll(RegExp(r',00$'), '')
+        .replaceAll(RegExp(r'[^\d]'), ''));
+
+    mainAccountBalance -= transactionAmount;
+    transactions.insert(0, transaction);
+    notifyListeners();
+  }
+}
+
+class DashboardPage extends StatefulWidget {
+  const DashboardPage();
+
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<PaymentModel>(context);
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 237, 235, 224),
       appBar: AppBar(
         iconTheme: IconThemeData(color: const Color(0xFF05396b)),
         backgroundColor: const Color(0xFF5cdb94),
-        title:
-            Text("Beranda", style: TextStyle(color: const Color(0xFF05396b))),
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.notifications),
-            onPressed: () {},
+        title: Center(
+          child: Text(
+            "Beranda",
+            style: TextStyle(color: const Color(0xFF05396b)),
           ),
-        ],
+        ),
+        automaticallyImplyLeading: false,
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -392,7 +497,7 @@ class DashboardPage extends StatelessWidget {
                   ),
                   SizedBox(height: 0),
                   Text(
-                    "Rp100.000.000,00",
+                    '${CurrencyFormat.convertToIdr(provider.mainAccountBalance, 2)}',
                     style: TextStyle(
                       fontSize: 32,
                       color: const Color(0xFF05396b),
@@ -415,7 +520,7 @@ class DashboardPage extends StatelessWidget {
                           child: Text(
                             "No Rekening",
                             style: TextStyle(
-                                fontSize: 14, color: const Color(0xFF6988a6)),
+                                fontSize: 14, color: const Color(0xFF05396b)),
                           ),
                         ),
                         Padding(
@@ -437,41 +542,6 @@ class DashboardPage extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => TransaksiPage()),
-                        );
-                      },
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: MediaQuery.of(context).size.width / 4 - 16,
-                            height: 70,
-                            padding: EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFe4dfd0),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(Icons.payment,
-                                size: 40, color: const Color(0xFF05396b)),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.only(top: 6),
-                            child: Text(
-                              'Transaksi',
-                              style: TextStyle(color: const Color(0xFF05396b)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 16),
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
@@ -544,11 +614,10 @@ class DashboardPage extends StatelessWidget {
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (BuildContext context) {
-                            return PopupDialog();
-                          },
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => ListrikPage()),
                         );
                       },
                       child: Column(
@@ -562,13 +631,47 @@ class DashboardPage extends StatelessWidget {
                               color: const Color(0xFFe4dfd0),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: Icon(Icons.more_horiz,
+                            child: Icon(Icons.bolt,
                                 size: 40, color: const Color(0xFF05396b)),
                           ),
                           Padding(
                             padding: EdgeInsets.only(top: 6),
                             child: Text(
-                              'Lainnya',
+                              'Listrik',
+                              style: TextStyle(color: const Color(0xFF05396b)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => AirPage()),
+                        );
+                      },
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: MediaQuery.of(context).size.width / 4 - 16,
+                            height: 70,
+                            padding: EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFe4dfd0),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(Icons.water_drop,
+                                size: 40, color: const Color(0xFF05396b)),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.only(top: 6),
+                            child: Text(
+                              'PDAM',
                               style: TextStyle(color: const Color(0xFF05396b)),
                             ),
                           ),
@@ -592,17 +695,25 @@ class DashboardPage extends StatelessWidget {
                         fontWeight: FontWeight.w500,
                         color: const Color(0xFF05396b)),
                   ),
-                  Row(
-                    children: [
-                      Text(
-                        'Lihat Detail',
-                        style: TextStyle(
-                            fontSize: 15.0, color: const Color(0xFF05396b)),
-                      ),
-                      SizedBox(width: 6),
-                      Icon(Icons.arrow_forward,
-                          size: 15, color: const Color(0xFF05396b)),
-                    ],
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => DetailPage()),
+                      );
+                    },
+                    child: Row(
+                      children: [
+                        Text(
+                          'Lihat Detail',
+                          style: TextStyle(
+                              fontSize: 15.0, color: const Color(0xFF05396b)),
+                        ),
+                        SizedBox(width: 6),
+                        Icon(Icons.arrow_forward,
+                            size: 15, color: const Color(0xFF05396b)),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -620,38 +731,286 @@ class DashboardPage extends StatelessWidget {
               child: ListView.builder(
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
-                itemCount: transactions.length,
+                itemCount: provider.transactions.length,
                 itemBuilder: (context, index) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(
-                          color: const Color(0xFF6988a6),
-                          width: 1.0,
+                  final transaction = provider.transactions[index];
+                  return GestureDetector(
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.all(Radius.circular(6.0))),
+                            backgroundColor: Colors.white,
+                            title: Text(
+                              'Informasi',
+                              style: TextStyle(
+                                color: const Color(0xFF05396b),
+                                fontSize: 23.5,
+                              ),
+                            ),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Table(
+                                  columnWidths: {
+                                    0: FixedColumnWidth(85),
+                                    1: FlexColumnWidth(2),
+                                  },
+                                  defaultVerticalAlignment:
+                                      TableCellVerticalAlignment.middle,
+                                  children: [
+                                    TableRow(
+                                      children: [
+                                        TableCell(
+                                          child: Text(
+                                            'ID:',
+                                            textAlign: TextAlign.left,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.normal,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                        TableCell(
+                                          child: Text(
+                                            '${transaction.ID}',
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    TableRow(
+                                      children: [
+                                        TableCell(
+                                          child: Text(
+                                            'Jenis:',
+                                            textAlign: TextAlign.left,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.normal,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                        TableCell(
+                                          child: Text(
+                                            '${transaction.description}',
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    TableRow(
+                                      children: [
+                                        TableCell(
+                                          child: Text(
+                                            'Nama:',
+                                            textAlign: TextAlign.left,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.normal,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                        TableCell(
+                                          child: Text(
+                                            '${transaction.name}',
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    TableRow(
+                                      children: [
+                                        TableCell(
+                                          child: Text(
+                                            'Tanggal:',
+                                            textAlign: TextAlign.left,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.normal,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                        TableCell(
+                                          child: Text(
+                                            '${DateFormat('yyyy-MM-dd HH:mm').format(transaction.date)}',
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    TableRow(
+                                      children: [
+                                        TableCell(
+                                          child: Text(
+                                            'Tagihan:',
+                                            textAlign: TextAlign.left,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.normal,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                        TableCell(
+                                          child: Text(
+                                            '${transaction.fee}',
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    TableRow(
+                                      children: [
+                                        TableCell(
+                                          child: Text(
+                                            'Lainnya:',
+                                            textAlign: TextAlign.left,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.normal,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                        TableCell(
+                                          child: Text(
+                                            '${transaction.admin}',
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    TableRow(
+                                      children: [
+                                        TableCell(
+                                          child: Text(
+                                            'Total:',
+                                            textAlign: TextAlign.left,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.normal,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                        TableCell(
+                                          child: Text(
+                                            '${transaction.amount}',
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(
+                                              color: const Color(0xFF05396b),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                },
+                                child: Text(
+                                  'OK',
+                                  style: TextStyle(
+                                    color: const Color(0xFF05396b),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(
+                            color: const Color(0xFF6988a6),
+                            width: 1.0,
+                          ),
                         ),
                       ),
-                    ),
-                    child: ListTile(
-                      leading: Icon(
-                        transactions[index].icon,
-                        color: const Color(0xFF05396b),
-                      ),
-                      title: Text(
-                        transactions[index].title,
-                        style: TextStyle(
-                            color: const Color(0xFF05396b),
-                            fontWeight: FontWeight.w500),
-                      ),
-                      subtitle: Text(
-                        transactions[index].description,
-                        style: TextStyle(color: const Color(0xFF05396b)),
-                      ),
-                      trailing: Text(
-                        transactions[index].amount,
-                        style: TextStyle(
-                            color: const Color(0xFF05396b),
-                            fontSize: 15,
-                            fontWeight: FontWeight.normal),
+                      child: ListTile(
+                        leading: Icon(
+                          transaction.icon,
+                          color: const Color(0xFF05396b),
+                        ),
+                        title: Text(
+                          transaction.title,
+                          style: TextStyle(
+                              color: const Color(0xFF05396b),
+                              fontWeight: FontWeight.w500),
+                        ),
+                        subtitle: Text(
+                          transaction.description,
+                          style: TextStyle(color: const Color(0xFF05396b)),
+                        ),
+                        trailing: Text(
+                          transaction.amount,
+                          style: TextStyle(
+                              color: const Color(0xFF05396b),
+                              fontSize: 15,
+                              fontWeight: FontWeight.normal),
+                        ),
                       ),
                     ),
                   );
@@ -666,7 +1025,22 @@ class DashboardPage extends StatelessWidget {
         width: 65,
         height: 65,
         child: FloatingActionButton(
-          onPressed: () {},
+          onPressed: () {
+            Navigator.of(context)
+                .push(
+              MaterialPageRoute(
+                builder: (_) => const TransaksiPage(),
+              ),
+            )
+                .then((result) {
+              if (result is QRIS) {
+                resultController.text = result.toString();
+                setState(() {
+                  _qris = result;
+                });
+              }
+            });
+          },
           child: Icon(
             Icons.qr_code,
             size: 40,
@@ -688,7 +1062,8 @@ class DashboardPage extends StatelessWidget {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => DashboardPage()),
+                  MaterialPageRoute(
+                      builder: (context) => SettingsAndHelpPage()),
                 );
               },
             ),
@@ -710,96 +1085,631 @@ class DashboardPage extends StatelessWidget {
       ),
     );
   }
+
+  @override
+  void dispose() {
+    resultController.dispose();
+    super.dispose();
+  }
+
+  QRIS? _qris;
+
+  late final resultController = TextEditingController();
 }
 
-class PopupDialog extends StatelessWidget {
+class DetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+    final provider = Provider.of<PaymentModel>(context);
+    return Scaffold(
+      body: DefaultTabController(
+        length: 2,
+        child: Scaffold(
+          backgroundColor: const Color.fromARGB(255, 237, 235, 224),
+          appBar: AppBar(
+            bottom: TabBar(
+              indicatorColor: const Color(0xFF05396b),
+              labelColor: const Color(0xFF05396b),
+              tabs: [
+                Tab(text: 'Pengeluaran'),
+                Tab(text: 'Pemasukan'),
+              ],
+            ),
+            iconTheme: IconThemeData(color: const Color(0xFF05396b)),
+            backgroundColor: const Color(0xFF5cdb94),
+            title: Text("Riwayat Transaksi",
+                style: TextStyle(color: const Color(0xFF05396b))),
+            automaticallyImplyLeading: true,
+          ),
+          body: TabBarView(
             children: [
-              Flexible(
-                flex: 1,
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => ListrikPage()),
-                    );
-                  },
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: MediaQuery.of(context).size.width / 4 - 16,
-                        height: 85,
-                        padding: EdgeInsets.all(10),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                itemCount: provider.transactions.length,
+                itemBuilder: (context, index) {
+                  final transaction = provider.transactions[index];
+                  if (transaction.title.contains("Pembayaran") ||
+                      transaction.title.contains("Transfer") ||
+                      transaction.title.contains("Tarik")) {
+                    return GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.all(Radius.circular(6.0))),
+                              backgroundColor: Colors.white,
+                              title: Text(
+                                'Informasi',
+                                style: TextStyle(
+                                  color: const Color(0xFF05396b),
+                                  fontSize: 23.5,
+                                ),
+                              ),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Table(
+                                    columnWidths: {
+                                      0: FixedColumnWidth(85),
+                                      1: FlexColumnWidth(2),
+                                    },
+                                    defaultVerticalAlignment:
+                                        TableCellVerticalAlignment.middle,
+                                    children: [
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'ID:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${transaction.ID}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'Jenis:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${transaction.description}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'Nama:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${transaction.name}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'Tanggal:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${DateFormat('yyyy-MM-dd HH:mm').format(transaction.date)}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'Tagihan:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${transaction.fee}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'Lainnya:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${transaction.admin}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'Total:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${transaction.amount}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                  },
+                                  child: Text(
+                                    'OK',
+                                    style: TextStyle(
+                                      color: const Color(0xFF05396b),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                      child: Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFFe4dfd0),
-                          borderRadius: BorderRadius.circular(10),
+                          border: Border(
+                            top: BorderSide(
+                              color: const Color(0xFF6988a6),
+                              width: 1.0,
+                            ),
+                          ),
                         ),
-                        child: Icon(Icons.bolt,
-                            size: 40, color: const Color(0xFF05396b)),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Bayar Listrik',
-                          style: TextStyle(
-                              color: const Color(0xFFe4dfd0),
-                              fontWeight: FontWeight.w500),
+                        child: ListTile(
+                          leading: Icon(
+                            transaction.icon,
+                            color: const Color(0xFF05396b),
+                          ),
+                          title: Text(
+                            transaction.title,
+                            style: TextStyle(
+                                color: const Color(0xFF05396b),
+                                fontWeight: FontWeight.w500),
+                          ),
+                          subtitle: Text(
+                            transaction.description,
+                            style: TextStyle(color: const Color(0xFF05396b)),
+                          ),
+                          trailing: Text(
+                            transaction.amount,
+                            style: TextStyle(
+                                color: const Color(0xFF05396b),
+                                fontSize: 15,
+                                fontWeight: FontWeight.normal),
+                          ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
+                    );
+                  }
+                  return SizedBox();
+                },
               ),
-              SizedBox(width: 25),
-              Flexible(
-                flex: 1,
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => AirPage()),
-                    );
-                  },
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: MediaQuery.of(context).size.width / 4 - 16,
-                        height: 85,
-                        padding: EdgeInsets.all(10),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                itemCount: provider.transactions.length,
+                itemBuilder: (context, index) {
+                  final transaction = provider.transactions[index];
+                  if (transaction.title.contains("Penambahan")) {
+                    return GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.all(Radius.circular(6.0))),
+                              backgroundColor: Colors.white,
+                              title: Text(
+                                'Informasi',
+                                style: TextStyle(
+                                  color: const Color(0xFF05396b),
+                                  fontSize: 23.5,
+                                ),
+                              ),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Table(
+                                    columnWidths: {
+                                      0: FixedColumnWidth(85),
+                                      1: FlexColumnWidth(2),
+                                    },
+                                    defaultVerticalAlignment:
+                                        TableCellVerticalAlignment.middle,
+                                    children: [
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'ID:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${transaction.ID}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'Jenis:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${transaction.description}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'Nama:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${transaction.name}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'Tanggal:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${DateFormat('yyyy-MM-dd HH:mm').format(transaction.date)}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'Tagihan:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${transaction.fee}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'Lainnya:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${transaction.admin}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      TableRow(
+                                        children: [
+                                          TableCell(
+                                            child: Text(
+                                              'Total:',
+                                              textAlign: TextAlign.left,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.normal,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                          TableCell(
+                                            child: Text(
+                                              '${transaction.amount}',
+                                              textAlign: TextAlign.right,
+                                              style: TextStyle(
+                                                color: const Color(0xFF05396b),
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                  },
+                                  child: Text(
+                                    'OK',
+                                    style: TextStyle(
+                                      color: const Color(0xFF05396b),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                      child: Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFFe4dfd0),
-                          borderRadius: BorderRadius.circular(10),
+                          border: Border(
+                            top: BorderSide(
+                              color: const Color(0xFF6988a6),
+                              width: 1.0,
+                            ),
+                          ),
                         ),
-                        child: Icon(Icons.water_drop,
-                            size: 40, color: const Color(0xFF05396b)),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Bayar PDAM',
-                          style: TextStyle(
-                              color: const Color(0xFFe4dfd0),
-                              fontWeight: FontWeight.w500),
+                        child: ListTile(
+                          leading: Icon(
+                            transaction.icon,
+                            color: const Color(0xFF05396b),
+                          ),
+                          title: Text(
+                            transaction.title,
+                            style: TextStyle(
+                                color: const Color(0xFF05396b),
+                                fontWeight: FontWeight.w500),
+                          ),
+                          subtitle: Text(
+                            transaction.description,
+                            style: TextStyle(color: const Color(0xFF05396b)),
+                          ),
+                          trailing: Text(
+                            transaction.amount,
+                            style: TextStyle(
+                                color: const Color(0xFF05396b),
+                                fontSize: 15,
+                                fontWeight: FontWeight.normal),
+                          ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
+                    );
+                  }
+                  return SizedBox();
+                },
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -809,11 +1719,407 @@ class ListrikPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 237, 235, 224),
       appBar: AppBar(
-        title: Text('Bayar Listrik'),
+        iconTheme: IconThemeData(color: const Color(0xFF05396b)),
+        backgroundColor: const Color(0xFF5cdb94),
+        title: Text("Bayar Listrik",
+            style: TextStyle(color: const Color(0xFF05396b))),
+        automaticallyImplyLeading: true,
       ),
       body: Center(
-        child: Text('Under Construction'),
+        child: ListrikForm(),
+      ),
+    );
+  }
+}
+
+class ListrikForm extends StatefulWidget {
+  @override
+  _ListrikFormState createState() => _ListrikFormState();
+}
+
+class _ListrikFormState extends State<ListrikForm> {
+  final TextEditingController _paymentTokenController = TextEditingController();
+
+  void showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          margin: const EdgeInsets.only(bottom: 0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              TextField(
+                controller: _paymentTokenController,
+                decoration: InputDecoration(
+                  labelText: 'Token Listrik',
+                  contentPadding:
+                      EdgeInsets.symmetric(vertical: 10.0, horizontal: 15.0),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: const Color(0x9905396b),
+                    ),
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                  hintStyle: TextStyle(
+                    color: const Color(0x9905396b),
+                  ),
+                  labelStyle: TextStyle(
+                    color: const Color(0x9905396b),
+                  ),
+                ),
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
+                ],
+                keyboardType: TextInputType.number,
+              ),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  String paymentToken = _paymentTokenController.text;
+                  if (paymentToken.length == 20) {
+                    Navigator.pushNamed(
+                      context,
+                      '/listrikConfirmation',
+                      arguments: paymentToken,
+                    );
+                  } else {
+                    showErrorMessage(
+                        "Token tidak terdiri dari 20 karakter. Coba lagi.");
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  backgroundColor: const Color(0xFF5cdb94),
+                  foregroundColor: const Color(0xFF05396b),
+                  padding: EdgeInsets.symmetric(vertical: 9),
+                  minimumSize: Size(double.infinity, 50),
+                ),
+                child: Text('Masukkan',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class TokenDetailsPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final String paymentToken =
+        ModalRoute.of(context)!.settings.arguments.toString();
+        
+    final provider = Provider.of<PaymentModel>(context, listen: false);
+    final faker = Faker();
+    final dateTime =
+        faker.date.dateTimeBetween(DateTime(2017, 9, 7), DateTime(2020, 9, 7));
+    final formattedDate = DateFormat('d MMMM y', 'id_ID').format(dateTime);
+
+    int fee = Random().nextInt(100000) + 10000;
+    int adminFee = Random().nextInt(2000) + 500;
+    int totalFee = fee + adminFee;
+
+    return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 237, 235, 224),
+      appBar: AppBar(
+        iconTheme: IconThemeData(color: const Color(0xFF05396b)),
+        backgroundColor: const Color(0xFF5cdb94),
+        title: Text(
+          "Bayar Listrik",
+          style: TextStyle(color: const Color(0xFF05396b)),
+        ),
+        automaticallyImplyLeading: true,
+      ),
+      body: Column(
+        children: <Widget>[
+          Container(
+            color: const Color(0xFFe4dfd0),
+            padding: EdgeInsets.all(20),
+            child: Table(
+              columnWidths: {
+                0: FixedColumnWidth(150),
+                1: FlexColumnWidth(),
+              },
+              children: [
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Token Listrik',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '$paymentToken',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Jenis Pembayaran',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'Pembayaran Listrik',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Nama Pelanggan',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'Gusti Putu Yastika Putra',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Tenggat Pembayaran',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          formattedDate,
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Tagihan',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(fee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Biaya Admin',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(adminFee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Total',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(totalFee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            height: 50,
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+            child: ElevatedButton(
+              onPressed: () {
+                Transaction newTransaction = Transaction(
+                  icon: Icons.payment,
+                  title: 'Pembayaran',
+                  description: 'Pembayaran listrik',
+                  ID: '$paymentToken',
+                  name: 'Gusti Putu Yastika Putra',
+                  feeAmount: fee,
+                  adminAmount: adminFee,
+                  date: DateTime.now(),
+                );
+
+                provider.addTransaction(newTransaction);
+
+                showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(6.0))),
+                      backgroundColor: Colors.white,
+                      title: Text(
+                        'Pembayaran Sukses',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 23.5,
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => DashboardPage()),
+                            );
+                          },
+                          child: Text(
+                            'OK',
+                            style: TextStyle(
+                              color: const Color(0xFF05396b),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                backgroundColor: const Color(0xFF5cdb94),
+                foregroundColor: const Color(0xFF05396b),
+                padding: EdgeInsets.symmetric(vertical: 9),
+              ),
+              child: Text(
+                'Bayar Listrik',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -844,16 +2150,15 @@ class PaymentForm extends StatefulWidget {
 }
 
 class _PaymentFormState extends State<PaymentForm> {
-  String rekeningId = '';
-  bool paymentInitiated = false;
+  final TextEditingController _paymentIdController = TextEditingController();
 
-  void initiatePayment() {
-    print('Payment initiated for rekening ID: $rekeningId');
-    Future.delayed(Duration(seconds: 1), () {
-      setState(() {
-        paymentInitiated = true;
-      });
-    });
+  void showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -864,227 +2169,617 @@ class _PaymentFormState extends State<PaymentForm> {
         Container(
           padding: const EdgeInsets.all(20),
           margin: const EdgeInsets.only(bottom: 0),
-          child: TextField(
-            decoration: InputDecoration(
-              labelText: 'ID Pelanggan PDAM',
-              contentPadding:
-                  EdgeInsets.symmetric(vertical: 10.0, horizontal: 15.0),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10.0),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(
-                  color: const Color(0x9905396b),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              TextField(
+                controller: _paymentIdController,
+                decoration: InputDecoration(
+                  labelText: 'ID Pelanggan PDAM',
+                  contentPadding:
+                      EdgeInsets.symmetric(vertical: 10.0, horizontal: 15.0),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: const Color(0x9905396b),
+                    ),
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                  hintStyle: TextStyle(
+                    color: const Color(0x9905396b),
+                  ),
+                  labelStyle: TextStyle(
+                    color: const Color(0x9905396b),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(10.0),
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
+                ],
+                keyboardType: TextInputType.number,
               ),
-              hintStyle: TextStyle(
-                color: const Color(0x9905396b),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  String paymentId = _paymentIdController.text;
+                  if (paymentId.length == 10) {
+                    Navigator.pushNamed(
+                      context,
+                      '/paymentConfirmation',
+                      arguments: paymentId,
+                    );
+                  } else {
+                    showErrorMessage(
+                        "ID tidak terdiri dari 10 karakter. Coba lagi.");
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  backgroundColor: const Color(0xFF5cdb94),
+                  foregroundColor: const Color(0xFF05396b),
+                  padding: EdgeInsets.symmetric(vertical: 9),
+                  minimumSize: Size(double.infinity, 50),
+                ),
+                child: Text('Masukkan',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
               ),
-              labelStyle: TextStyle(
-                color: const Color(0x9905396b),
-              ),
-            ),
-            onChanged: (value) {
-              setState(() {
-                rekeningId = value;
-              });
-            },
-            inputFormatters: <TextInputFormatter>[
-              FilteringTextInputFormatter.allow(
-                  RegExp(r'[0-9]')), // Allow only numbers
             ],
-            keyboardType: TextInputType.number,
           ),
         ),
-        Container(
-          width: double.infinity,
-          height: 50,
-          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 0),
-          child: ElevatedButton(
-            onPressed: rekeningId.isEmpty ? null : initiatePayment,
-            style: ElevatedButton.styleFrom(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(7),
-              ),
-              backgroundColor: const Color(0xFF5cdb94),
-              foregroundColor: const Color(0xFF05396b),
-              padding: EdgeInsets.symmetric(vertical: 9),
-            ),
-            child: Text('Masukkan',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-          ),
+      ],
+    );
+  }
+}
+
+class PaymentDetailsPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final String paymentId =
+        ModalRoute.of(context)!.settings.arguments.toString();
+    final provider = Provider.of<PaymentModel>(context, listen: false);
+    final faker = Faker();
+    final dateTime =
+        faker.date.dateTimeBetween(DateTime(2017, 9, 7), DateTime(2020, 9, 7));
+    final formattedDate = DateFormat('d MMMM y', 'id_ID').format(dateTime);
+
+    int fee = Random().nextInt(100000) + 10000;
+    int adminFee = Random().nextInt(2000) + 500;
+    int totalFee = fee + adminFee;
+    String fakeName = faker.person.name();
+
+    return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 237, 235, 224),
+      appBar: AppBar(
+        iconTheme: IconThemeData(color: const Color(0xFF05396b)),
+        backgroundColor: const Color(0xFF5cdb94),
+        title: Text(
+          "Bayar PDAM",
+          style: TextStyle(color: const Color(0xFF05396b)),
         ),
-        SizedBox(height: 20),
-        if (paymentInitiated)
-          Column(
-            children: [
-              Container(
-                color: const Color(0xFFe4dfd0),
-                padding: EdgeInsets.all(20),
-                child: Table(
-                  columnWidths: {
-                    0: FixedColumnWidth(150),
-                    1: FlexColumnWidth(),
-                  },
+        automaticallyImplyLeading: true,
+      ),
+      body: Column(
+        children: <Widget>[
+          Container(
+            color: const Color(0xFFe4dfd0),
+            padding: EdgeInsets.all(20),
+            child: Table(
+              columnWidths: {
+                0: FixedColumnWidth(150),
+                1: FlexColumnWidth(),
+              },
+              children: [
+                TableRow(
                   children: [
-                    TableRow(
-                      children: [
-                        TableCell(
+                    TableCell(
+                      child: Text(
+                        'ID Pelanggan',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '$paymentId',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Jenis Pembayaran',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'Pembayaran Air',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Nama Pelanggan',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '$fakeName',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Tenggat Pembayaran',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          formattedDate,
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Tagihan',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(fee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Biaya Admin',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(adminFee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Total',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(totalFee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            height: 50,
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+            child: ElevatedButton(
+              onPressed: () {
+                Transaction newTransaction = Transaction(
+                  icon: Icons.payment,
+                  title: 'Pembayaran',
+                  description: 'Pembayaran air',
+                  ID: '$paymentId',
+                  name: '$fakeName',
+                  feeAmount: fee,
+                  adminAmount: adminFee,
+                  date: DateTime.now(),
+                );
+
+                provider.addTransaction(newTransaction);
+
+                showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(6.0))),
+                      backgroundColor: Colors.white,
+                      title: Text(
+                        'Pembayaran Sukses',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 23.5,
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => DashboardPage()),
+                            );
+                          },
                           child: Text(
-                            'Pemilik Rekening',
+                            'OK',
                             style: TextStyle(
                               color: const Color(0xFF05396b),
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                        TableCell(
-                          child: Container(
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              'Gusti Putu Yastika Putra',
-                              style: TextStyle(
-                                color: const Color(0xFF05396b),
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                              ),
                             ),
                           ),
                         ),
                       ],
+                    );
+                  },
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                backgroundColor: const Color(0xFF5cdb94),
+                foregroundColor: const Color(0xFF05396b),
+                padding: EdgeInsets.symmetric(vertical: 9),
+              ),
+              child: Text(
+                'Bayar PDAM',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TransaksiPage extends StatefulWidget {
+  const TransaksiPage();
+
+  @override
+  State<TransaksiPage> createState() => _TransaksiPageState();
+}
+
+class _TransaksiPageState extends State<TransaksiPage> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        iconTheme: IconThemeData(color: const Color(0xFF05396b)),
+        backgroundColor: const Color(0xFF5cdb94),
+        title: Text("Bayar dengan QR",
+            style: TextStyle(color: const Color(0xFF05396b))),
+        automaticallyImplyLeading: true,
+        actions: [
+          IconButton(
+            icon: Icon(
+              Icons.image,
+              color: const Color(0xFF05396b),
+            ),
+            onPressed: readFromImage,
+          ),
+        ],
+      ),
+      body: MobileScanner(
+        controller: MobileScannerController(
+          detectionSpeed: DetectionSpeed.noDuplicates,
+          returnImage: true,
+        ),
+        onDetect: onDetect,
+      ),
+    );
+  }
+
+  late final MobileScannerController controller = MobileScannerController(
+    formats: [
+      BarcodeFormat.qrCode,
+    ],
+  );
+
+  void onDetect(BarcodeCapture barcodes) {
+    for (var barcode in barcodes.barcodes) {
+      final rawValue = barcode.rawValue;
+      if (rawValue != null) {
+        try {
+          final qris = QRIS(rawValue);
+          Navigator.of(context).pop();
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TransaksiForm(qris: qris),
+            ),
+          );
+          break;
+        } catch (_) {
+          print(_);
+        }
+      }
+    }
+  }
+
+  Future<void> readFromImage() async {
+    final xFile = await ImagePicker().pickImage(source: ImageSource.gallery);
+    final filePath = xFile?.path;
+    if (filePath != null) {
+      final data = await bf.BarcodeFinder.scanFile(
+        path: filePath,
+        formats: [bf.BarcodeFormat.QR_CODE],
+      );
+      if (data != null) {
+        final qris = QRIS(data);
+        Navigator.of(context).pop();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => TransaksiForm(qris: qris),
+          ),
+        );
+      }
+    }
+  }
+}
+
+class TransactionArguments {
+  final String paymentAmount;
+  final String merchantName;
+
+  TransactionArguments(
+      {required this.paymentAmount, required this.merchantName});
+}
+
+class TransferArguments {
+  final String paymentAmount;
+  final String paymentRek;
+  final String fakeName;
+
+  TransferArguments(
+      {required this.paymentAmount,
+      required this.paymentRek,
+      required this.fakeName});
+}
+
+class TarikArguments {
+  final String tarikAmount;
+
+  TarikArguments(
+      {required this.tarikAmount,});
+}
+
+
+class TransaksiForm extends StatefulWidget {
+  final QRIS qris;
+  const TransaksiForm({Key? key, required this.qris}) : super(key: key);
+
+  @override
+  State<TransaksiForm> createState() => _TransaksiFormState();
+}
+
+class _TransaksiFormState extends State<TransaksiForm> {
+  final TextEditingController _paymentAmountController =
+      TextEditingController();
+
+  void showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<PaymentModel>(context, listen: false);
+
+    return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 237, 235, 224),
+      appBar: AppBar(
+        iconTheme: IconThemeData(color: const Color(0xFF05396b)),
+        backgroundColor: const Color(0xFF5cdb94),
+        title: Text("Bayar dengan QR",
+            style: TextStyle(color: const Color(0xFF05396b))),
+        automaticallyImplyLeading: true,
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Padding(
+                padding: EdgeInsets.only(left: 20.0, top: 20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${widget.qris.merchantName}',
+                      style: TextStyle(
+                        fontSize: 22,
+                        height: 1.25,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF05396b),
+                      ),
                     ),
-                    TableRow(
-                      children: [
-                        TableCell(
-                            child: Text(
-                          'Tenggat Pembayaran',
-                          style: TextStyle(
-                            color: const Color(0xFF05396b),
-                            fontSize: 15,
-                          ),
-                        )),
-                        TableCell(
-                          child: Container(
-                            alignment: Alignment
-                                .centerRight, // Align text to the right
-                            child: Text(
-                              '24 Maret 2024',
-                              style: TextStyle(
-                                color: const Color(0xFF05396b),
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    TableRow(
-                      children: [
-                        TableCell(
-                            child: Text(
-                          'Tagihan',
-                          style: TextStyle(
-                            color: const Color(0xFF05396b),
-                            fontSize: 15,
-                          ),
-                        )),
-                        TableCell(
-                          child: Container(
-                            alignment: Alignment
-                                .centerRight, // Align text to the right
-                            child: Text(
-                              '2.500',
-                              style: TextStyle(
-                                color: const Color(0xFF05396b),
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    TableRow(
-                      children: [
-                        TableCell(
-                            child: Text(
-                          'Biaya Admin',
-                          style: TextStyle(
-                            color: const Color(0xFF05396b),
-                            fontSize: 15,
-                          ),
-                        )),
-                        TableCell(
-                          child: Container(
-                            alignment: Alignment
-                                .centerRight, // Align text to the right
-                            child: Text(
-                              '500',
-                              style: TextStyle(
-                                color: const Color(0xFF05396b),
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    TableRow(
-                      children: [
-                        TableCell(
-                            child: Text(
-                          'Total',
-                          style: TextStyle(
-                            color: const Color(0xFF05396b),
-                            fontSize: 15,
-                          ),
-                        )),
-                        TableCell(
-                          child: Container(
-                            alignment: Alignment
-                                .centerRight, // Align text to the right
-                            child: Text(
-                              'Rp. 3.000',
-                              style: TextStyle(
-                                color: const Color(0xFF05396b),
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                    Text(
+                      '${widget.qris.merchantCity}',
+                      style: TextStyle(
+                        fontSize: 16.0,
+                        color: const Color(0xFF05396b),
+                      ),
                     ),
                   ],
                 ),
               ),
-              SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                height: 50,
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 0),
-                child: ElevatedButton(
+              Padding(
+                padding: EdgeInsets.only(right: 20.0, top: 20.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF5cdb94),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10.0),
+                    child: Icon(
+                      Icons.store,
+                      size: 26.0,
+                      color: const Color(0xFF05396b),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _paymentAmountController,
+                  decoration: InputDecoration(
+                    labelText: 'Nominal Pembayaran',
+                    contentPadding:
+                        EdgeInsets.symmetric(vertical: 10.0, horizontal: 15.0),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: const Color(0x9905396b),
+                      ),
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+                    hintStyle: TextStyle(
+                      color: const Color(0x9905396b),
+                    ),
+                    labelStyle: TextStyle(
+                      color: const Color(0x9905396b),
+                    ),
+                  ),
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
+                  ],
+                  keyboardType: TextInputType.number,
+                ),
+                SizedBox(height: 15),
+                ElevatedButton(
                   onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          title: Text('Pembayaran Sukses'),
-                          actions: [
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                              },
-                              child: Text('OK'),
-                            ),
-                          ],
-                        );
-                      },
-                    );
+                    String paymentAmount = _paymentAmountController.text;
+                    int paymentNom = int.parse(paymentAmount, radix: 10);
+
+                    if (paymentNom < provider.mainAccountBalance) {
+                      Navigator.pushNamed(
+                        context,
+                        '/transactionConfirm',
+                        arguments: TransactionArguments(
+                          paymentAmount: paymentAmount,
+                          merchantName: widget.qris.merchantName!,
+                        ),
+                      );
+                    } else {
+                      showErrorMessage(
+                          "Nominal pembayaran melebihi saldo rekening Anda.");
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     elevation: 0,
@@ -1094,28 +2789,298 @@ class _PaymentFormState extends State<PaymentForm> {
                     backgroundColor: const Color(0xFF5cdb94),
                     foregroundColor: const Color(0xFF05396b),
                     padding: EdgeInsets.symmetric(vertical: 9),
+                    minimumSize: Size(double.infinity, 50),
                   ),
-                  child: Text('Bayar PDAM',
+                  child: Text('Masukkan',
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-class TransaksiPage extends StatelessWidget {
+class TransaksiConfirm extends StatelessWidget {
+  final String merchantName;
+  final String paymentAmount;
+
+  const TransaksiConfirm({
+    Key? key,
+    required this.paymentAmount,
+    required this.merchantName,
+  }) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
+    int paymentNom = int.tryParse(paymentAmount) ?? 0;
+
+    final TransactionArguments args =
+        ModalRoute.of(context)!.settings.arguments as TransactionArguments;
+    final String merchantName = args.merchantName;
+
+    final provider = Provider.of<PaymentModel>(context, listen: false);
+
+    int id = Random().nextInt(4294967296) + 0;
+    int fee = paymentNom;
+    int adminFee = 0;
+    int totalFee = fee + adminFee;
+
     return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 237, 235, 224),
       appBar: AppBar(
-        title: Text('Transaksi'),
+        iconTheme: IconThemeData(color: const Color(0xFF05396b)),
+        backgroundColor: const Color(0xFF5cdb94),
+        title: Text(
+          "Transaksi Pembayaran",
+          style: TextStyle(color: const Color(0xFF05396b)),
+        ),
+        automaticallyImplyLeading: true,
       ),
-      body: Center(
-        child: Text('Under Construction'),
+      body: Column(
+        children: <Widget>[
+          Container(
+            color: const Color(0xFFe4dfd0),
+            padding: EdgeInsets.all(20),
+            child: Table(
+              columnWidths: {
+                0: FixedColumnWidth(150),
+                1: FlexColumnWidth(),
+              },
+              children: [
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'ID Merchant',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '$id',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Jenis Pembayaran',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'Transaksi eksternal',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Nama Merchant',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          merchantName,
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Tagihan',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(fee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Biaya Admin',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(adminFee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Total',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(totalFee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            height: 50,
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+            child: ElevatedButton(
+              onPressed: () {
+                Transaction newTransaction = Transaction(
+                  icon: Icons.payment,
+                  title: 'Pembayaran',
+                  description: 'Transaksi eksternal',
+                  ID: '$id',
+                  name: merchantName,
+                  feeAmount: fee,
+                  adminAmount: adminFee,
+                  date: DateTime.now(),
+                );
+
+                provider.addTransaction(newTransaction);
+
+                showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(6.0))),
+                      backgroundColor: Colors.white,
+                      title: Text(
+                        'Pembayaran Sukses',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 23.5,
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => DashboardPage()),
+                            );
+                          },
+                          child: Text(
+                            'OK',
+                            style: TextStyle(
+                              color: const Color(0xFF05396b),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                backgroundColor: const Color(0xFF5cdb94),
+                foregroundColor: const Color(0xFF05396b),
+                padding: EdgeInsets.symmetric(vertical: 9),
+              ),
+              child: Text(
+                'Bayar Transaksi',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1125,25 +3090,939 @@ class TransferPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 237, 235, 224),
       appBar: AppBar(
-        title: Text('Transfer'),
+        iconTheme: IconThemeData(color: const Color(0xFF05396b)),
+        backgroundColor: const Color(0xFF5cdb94),
+        title: Text("Transfer Tunai",
+            style: TextStyle(color: const Color(0xFF05396b))),
+        automaticallyImplyLeading: true,
       ),
       body: Center(
-        child: Text('Under Construction'),
+        child: TransferForm(),
       ),
     );
   }
 }
 
-class TarikPage extends StatelessWidget {
+class TransferForm extends StatefulWidget {
+  @override
+  State<TransferForm> createState() => _TransferFormState();
+}
+
+class _TransferFormState extends State<TransferForm> {
+  final TextEditingController _paymentRekController = TextEditingController();
+
+  void showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Tarik'),
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          margin: const EdgeInsets.only(bottom: 0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              TextField(
+                controller: _paymentRekController,
+                decoration: InputDecoration(
+                  labelText: 'Nomor Rekening Penerima',
+                  contentPadding:
+                      EdgeInsets.symmetric(vertical: 10.0, horizontal: 15.0),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(
+                      color: const Color(0x9905396b),
+                    ),
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                  hintStyle: TextStyle(
+                    color: const Color(0x9905396b),
+                  ),
+                  labelStyle: TextStyle(
+                    color: const Color(0x9905396b),
+                  ),
+                ),
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
+                ],
+                keyboardType: TextInputType.number,
+              ),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  String paymentRek = _paymentRekController.text;
+                  if (paymentRek.length == 10) {
+                    Navigator.pushNamed(
+                      context,
+                      '/transferNominal',
+                      arguments: paymentRek,
+                    );
+                  } else {
+                    showErrorMessage(
+                        "ID tidak terdiri dari 10 karakter. Coba lagi.");
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  backgroundColor: const Color(0xFF5cdb94),
+                  foregroundColor: const Color(0xFF05396b),
+                  padding: EdgeInsets.symmetric(vertical: 9),
+                  minimumSize: Size(double.infinity, 50),
+                ),
+                child: Text('Masukkan',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class TransferNominal extends StatefulWidget {
+  @override
+  State<TransferNominal> createState() => _TransferNominalState();
+}
+
+class _TransferNominalState extends State<TransferNominal> {
+  final TextEditingController _paymentAmountController =
+      TextEditingController();
+
+  void showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: Duration(seconds: 2),
       ),
-      body: Center(
-        child: Text('Under Construction'),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<PaymentModel>(context, listen: false);
+    final String fakeName = faker.person.name();
+    final String paymentRek =
+        ModalRoute.of(context)!.settings.arguments.toString();
+
+    return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 237, 235, 224),
+      appBar: AppBar(
+        iconTheme: IconThemeData(color: const Color(0xFF05396b)),
+        backgroundColor: const Color(0xFF5cdb94),
+        title: Text("Transfer Tunai",
+            style: TextStyle(color: const Color(0xFF05396b))),
+        automaticallyImplyLeading: true,
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Padding(
+                padding: EdgeInsets.only(left: 20.0, top: 20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${fakeName}',
+                      style: TextStyle(
+                        fontSize: 22,
+                        height: 1.25,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF05396b),
+                      ),
+                    ),
+                    Text(
+                      '${paymentRek}',
+                      style: TextStyle(
+                        fontSize: 16.0,
+                        color: const Color(0xFF05396b),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.only(right: 20.0, top: 20.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF5cdb94),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10.0),
+                    child: Icon(
+                      Icons.credit_card,
+                      size: 26.0,
+                      color: const Color(0xFF05396b),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _paymentAmountController,
+                  decoration: InputDecoration(
+                    labelText: 'Nominal Pembayaran',
+                    contentPadding:
+                        EdgeInsets.symmetric(vertical: 10.0, horizontal: 15.0),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: const Color(0x9905396b),
+                      ),
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+                    hintStyle: TextStyle(
+                      color: const Color(0x9905396b),
+                    ),
+                    labelStyle: TextStyle(
+                      color: const Color(0x9905396b),
+                    ),
+                  ),
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
+                  ],
+                  keyboardType: TextInputType.number,
+                ),
+                SizedBox(height: 15),
+                ElevatedButton(
+                  onPressed: () {
+                    String paymentAmount = _paymentAmountController.text;
+                    int paymentNom = int.tryParse(paymentAmount) ?? 0;
+
+                    if (paymentNom < provider.mainAccountBalance) {
+                      Navigator.pushNamed(
+                        context,
+                        '/transferConfirm',
+                        arguments: TransferArguments(
+                          paymentAmount: paymentAmount,
+                          paymentRek: paymentRek,
+                          fakeName: fakeName,
+                        ),
+                      );
+                    } else {
+                      showErrorMessage(
+                          "Nominal pembayaran melebihi saldo rekening Anda.");
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    backgroundColor: const Color(0xFF5cdb94),
+                    foregroundColor: const Color(0xFF05396b),
+                    padding: EdgeInsets.symmetric(vertical: 9),
+                    minimumSize: Size(double.infinity, 50),
+                  ),
+                  child: Text('Masukkan',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TransferConfirm extends StatelessWidget {
+  final String paymentRek;
+  final String paymentAmount;
+  final String fakeName;
+
+  const TransferConfirm({
+    Key? key,
+    required this.paymentAmount,
+    required this.paymentRek,
+    required this.fakeName,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    int paymentNom = int.tryParse(paymentAmount) ?? 0;
+
+    final TransferArguments args =
+        ModalRoute.of(context)!.settings.arguments as TransferArguments;
+    final String paymentRek = args.paymentRek;
+    final String fakeName = args.fakeName;
+
+    final provider = Provider.of<PaymentModel>(context, listen: false);
+
+    int id = int.parse(paymentRek, radix: 10);
+    int fee = paymentNom;
+    int adminFee = 0;
+    int totalFee = fee + adminFee;
+
+    return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 237, 235, 224),
+      appBar: AppBar(
+        iconTheme: IconThemeData(color: const Color(0xFF05396b)),
+        backgroundColor: const Color(0xFF5cdb94),
+        title: Text(
+          "Transfer Tunai",
+          style: TextStyle(color: const Color(0xFF05396b)),
+        ),
+        automaticallyImplyLeading: true,
+      ),
+      body: Column(
+        children: <Widget>[
+          Container(
+            color: const Color(0xFFe4dfd0),
+            padding: EdgeInsets.all(20),
+            child: Table(
+              columnWidths: {
+                0: FixedColumnWidth(150),
+                1: FlexColumnWidth(),
+              },
+              children: [
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'ID Merchant',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '$id',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Jenis Pembayaran',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'Transfer tunai',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Nama Penerima',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${fakeName}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Tagihan',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(fee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Biaya Admin',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(adminFee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Total',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(totalFee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            height: 50,
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+            child: ElevatedButton(
+              onPressed: () {
+                Transaction newTransaction = Transaction(
+                  icon: Icons.payment,
+                  title: 'Transfer',
+                  description: 'Transfer ke akun lain',
+                  ID: '$id',
+                  name: '$fakeName',
+                  feeAmount: fee,
+                  adminAmount: adminFee,
+                  date: DateTime.now(),
+                );
+
+                provider.addTransaction(newTransaction);
+
+                showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(6.0))),
+                      backgroundColor: Colors.white,
+                      title: Text(
+                        'Transfer Sukses',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 23.5,
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => DashboardPage()),
+                            );
+                          },
+                          child: Text(
+                            'OK',
+                            style: TextStyle(
+                              color: const Color(0xFF05396b),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                backgroundColor: const Color(0xFF5cdb94),
+                foregroundColor: const Color(0xFF05396b),
+                padding: EdgeInsets.symmetric(vertical: 9),
+              ),
+              child: Text(
+                'Transfer Tunai',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TarikPage extends StatefulWidget {
+  @override
+  State<TarikPage> createState() => _TarikPageState();
+}
+
+class _TarikPageState extends State<TarikPage> {
+  final TextEditingController _tarikAmountController =
+      TextEditingController();
+
+  void showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<PaymentModel>(context, listen: false);
+
+    return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 237, 235, 224),
+      appBar: AppBar(
+        iconTheme: IconThemeData(color: const Color(0xFF05396b)),
+        backgroundColor: const Color(0xFF5cdb94),
+        title: Text("Tarik Tunai",
+            style: TextStyle(color: const Color(0xFF05396b))),
+        automaticallyImplyLeading: true,
+      ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _tarikAmountController,
+                  decoration: InputDecoration(
+                    labelText: 'Nominal Tarik',
+                    contentPadding:
+                        EdgeInsets.symmetric(vertical: 10.0, horizontal: 15.0),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: const Color(0x9905396b),
+                      ),
+                      borderRadius: BorderRadius.circular(10.0),
+                    ),
+                    hintStyle: TextStyle(
+                      color: const Color(0x9905396b),
+                    ),
+                    labelStyle: TextStyle(
+                      color: const Color(0x9905396b),
+                    ),
+                  ),
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
+                  ],
+                  keyboardType: TextInputType.number,
+                ),
+                SizedBox(height: 15),
+                ElevatedButton(
+                  onPressed: () {
+                    String tarikAmount = _tarikAmountController.text;
+                    int tarikNom = int.parse(tarikAmount, radix: 10);
+
+                    if (tarikNom < provider.mainAccountBalance) {
+                      Navigator.pushNamed(
+                        context,
+                        '/tarikConfirm',
+                        arguments: TarikArguments(
+                          tarikAmount: tarikAmount,
+                        ),
+                      );
+                    } else {
+                      showErrorMessage(
+                          "Nominal tarik melebihi saldo rekening Anda.");
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    backgroundColor: const Color(0xFF5cdb94),
+                    foregroundColor: const Color(0xFF05396b),
+                    padding: EdgeInsets.symmetric(vertical: 9),
+                    minimumSize: Size(double.infinity, 50),
+                  ),
+                  child: Text('Masukkan',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TarikConfirm extends StatelessWidget {
+  final String tarikAmount;
+
+  const TarikConfirm({
+    Key? key,
+    required this.tarikAmount,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    int tarikNom = int.tryParse(tarikAmount) ?? 0;
+
+    final TarikArguments args =
+        ModalRoute.of(context)!.settings.arguments as TarikArguments;
+
+    final provider = Provider.of<PaymentModel>(context, listen: false);
+
+    int id = 1511000843;
+    int fee = tarikNom;
+    int adminFee = 0;
+    int totalFee = fee + adminFee;
+
+    return Scaffold(
+      backgroundColor: const Color.fromARGB(255, 237, 235, 224),
+      appBar: AppBar(
+        iconTheme: IconThemeData(color: const Color(0xFF05396b)),
+        backgroundColor: const Color(0xFF5cdb94),
+        title: Text(
+          "Tarik Tunai",
+          style: TextStyle(color: const Color(0xFF05396b)),
+        ),
+        automaticallyImplyLeading: true,
+      ),
+      body: Column(
+        children: <Widget>[
+          Container(
+            color: const Color(0xFFe4dfd0),
+            padding: EdgeInsets.all(20),
+            child: Table(
+              columnWidths: {
+                0: FixedColumnWidth(150),
+                1: FlexColumnWidth(),
+              },
+              children: [
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'ID Merchant',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '$id',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Jenis Pembayaran',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'Tarik tunai',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Nama Pemilik',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'Gusti Putu Yastika Putra',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Tagihan',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(fee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Biaya Admin',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(adminFee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                TableRow(
+                  children: [
+                    TableCell(
+                      child: Text(
+                        'Total',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    TableCell(
+                      child: Container(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${CurrencyFormat.convertToIdr(totalFee, 2)}',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            height: 50,
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+            child: ElevatedButton(
+              onPressed: () {
+                Transaction newTransaction = Transaction(
+                  icon: Icons.payment,
+                  title: 'Penarikan',
+                  description: 'Tarik tunai',
+                  ID: '$id',
+                  name: 'Gusti Putu Yastika Putra',
+                  feeAmount: fee,
+                  adminAmount: adminFee,
+                  date: DateTime.now(),
+                );
+
+                provider.addTransaction(newTransaction);
+
+                showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(6.0))),
+                      backgroundColor: Colors.white,
+                      title: Text(
+                        'Penarikan Sukses',
+                        style: TextStyle(
+                          color: const Color(0xFF05396b),
+                          fontSize: 23.5,
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => DashboardPage()),
+                            );
+                          },
+                          child: Text(
+                            'OK',
+                            style: TextStyle(
+                              color: const Color(0xFF05396b),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                backgroundColor: const Color(0xFF5cdb94),
+                foregroundColor: const Color(0xFF05396b),
+                padding: EdgeInsets.symmetric(vertical: 9),
+              ),
+              child: Text(
+                'Tarik Tunai',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1226,9 +4105,55 @@ class SettingsAndHelpPage extends StatelessWidget {
           _buildSection('Help', help),
           GestureDetector(
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => HomePage()),
+              showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(6.0))),
+                    backgroundColor: Colors.white,
+                    title: Text(
+                      'Konfirmasi',
+                      style: TextStyle(
+                        color: const Color(0xFF05396b),
+                        fontSize: 23.5,
+                      ),
+                    ),
+                    content: Text(
+                      "Apakah Anda yakin ingin keluar?",
+                      style: TextStyle(
+                        color: const Color(0xFF05396b),
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        child: Text(
+                          'Tidak',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => HomePage()),
+                          );
+                        },
+                        child: Text(
+                          'Ya',
+                          style: TextStyle(
+                            color: const Color(0xFF05396b),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               );
             },
             child: Container(
@@ -1258,7 +4183,12 @@ class SettingsAndHelpPage extends StatelessWidget {
         width: 65,
         height: 65,
         child: FloatingActionButton(
-          onPressed: () {},
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => TransaksiPage()),
+            );
+          },
           child: Icon(
             Icons.qr_code,
             size: 40,
