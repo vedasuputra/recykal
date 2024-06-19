@@ -18,6 +18,9 @@ dependencies:
   qris: ^0.7.1
   barcode_finder: ^0.0.5
   image_picker: ^1.0.4
+  firebase_core: ^2.27.0
+  firebase_auth: ^4.17.8
+  firebase_database: ^10.4.9
 
 dev_dependencies:
   flutter_test:
